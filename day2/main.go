@@ -5,10 +5,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
-func isInvalidIDPartOne(id int) bool {
-	idStr := strconv.Itoa(id)
+func isInvalidIDPartOne(idStr string) bool {
 	length := len(idStr)
 	if length%2 != 0 {
 		return false
@@ -16,8 +17,7 @@ func isInvalidIDPartOne(id int) bool {
 	return idStr[:length/2] == idStr[length/2:]
 }
 
-func isInvalidIDPartTwo(id int) bool {
-	idStr := strconv.Itoa(id)
+func isInvalidIDPartTwo(idStr string) bool {
 	length := len(idStr)
 	for i := 1; i <= length/2; i++ {
 		if length%i != 0 {
@@ -40,21 +40,32 @@ func main() {
 	inputStr := strings.TrimSuffix(string(input), "\n")
 	values := strings.Split(inputStr, ",")
 
-	invalidIDValuePartOne, invalidIDValuePartTwo := 0, 0
-	for value := range values {
-		ranges := strings.Split(values[value], "-")
-		begin, _ := strconv.Atoi(ranges[0])
-		end, _ := strconv.Atoi(ranges[1])
+	var invalidIDValuePartOne, invalidIDValuePartTwo int64
 
-		for i := begin; i <= end; i++ {
-			if isInvalidIDPartOne(i) {
-				invalidIDValuePartOne += i
+	var wg sync.WaitGroup
+
+	for _, valueStr := range values {
+		wg.Add(1)
+		go func(valueStr string) {
+			defer wg.Done()
+			ranges := strings.Split(valueStr, "-")
+
+			begin, _ := strconv.Atoi(ranges[0])
+			end, _ := strconv.Atoi(ranges[1])
+
+			for i := begin; i <= end; i++ {
+				idStr := strconv.Itoa(i)
+				if isInvalidIDPartOne(idStr) {
+					atomic.AddInt64(&invalidIDValuePartOne, int64(i))
+				}
+				if isInvalidIDPartTwo(idStr) {
+					atomic.AddInt64(&invalidIDValuePartTwo, int64(i))
+				}
 			}
-			if isInvalidIDPartTwo(i) {
-				invalidIDValuePartTwo += i
-			}
-		}
+		}(valueStr)
 	}
+
+	wg.Wait()
 
 	log.Printf("The value of the invalid IDs Part One is: %d", invalidIDValuePartOne)
 	log.Printf("The value of the invalid IDs Part Two is: %d", invalidIDValuePartTwo)
